@@ -1,0 +1,52 @@
+name: Get Affected Projects
+
+on:
+  workflow_call:
+    inputs:
+      nx-project-tag:
+        description: 'Optional Nx tag to filter projects'
+        required: false
+        type: string
+      node-version:
+        description: 'Node.js version to use'
+        required: false
+        type: string
+        default: '20'
+    outputs:
+      affected-projects:
+        description: 'List of affected projects'
+        value: ${{ jobs.get-affected-projects.outputs.affected-projects }}
+
+jobs:
+  get-affected-projects:
+    runs-on: ubuntu-latest
+    outputs:
+      affected-projects: ${{ steps.set-matrix.outputs.affected-projects }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Fetch base branch (main)
+        run: git fetch origin main --depth=1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Get affected projects
+        id: set-matrix
+        run: |
+          if [ -n "${{ inputs.nx-project-tag }}" ]; then
+            FILTER="--projects tag:${{ inputs.nx-project-tag }}"
+          else
+            FILTER=""
+          fi
+          AFFECTED=$(npx nx show projects --affected $FILTER --base=origin/main --head=HEAD --json)
+          echo "affected-projects=$AFFECTED" >> $GITHUB_OUTPUT
